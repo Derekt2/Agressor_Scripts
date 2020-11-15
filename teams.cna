@@ -1,0 +1,18 @@
+# Author @derekt2. Based on the work of @bluescreenofjeff
+
+$teamsWebhookURL = 'https://hooks.teams.com/services/XXXXXXXXXXX/XXXXXXXXXXXXXx';
+
+#beacon_command_register(
+#    "enumerate", 
+#    "Perform OPSEC safe host enumeration with built-in commands", 
+#    "Use: enumerate\n\nPerform Windows host enumeration with OPSEC safe techniques.");
+
+on beacon_initial {
+		@curl_command = @('curl','-H','"Content-Type: application/json"','-d','"{"text": "New Beacon Checkin"}"',$teamsWebhookURL);
+		exec(@curl_command);
+}
+
+on web_hit {
+		@curl_command = @('curl','-H','"Content-Type: application/json"','-d','"{"text": "New web_hit activity"}"',$teamsWebhookURL);
+		exec(@curl_command);
+}
