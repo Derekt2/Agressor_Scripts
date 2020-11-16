@@ -5,8 +5,10 @@
 #%teams_options["webhookURL"] = 'https://hooks.teams.com/services/AAAAAAAAA/BBBBBBBBB/CCCCCCCCCCCCCCCCCCCCCCCC';
 %teams_options["teamserver"] = localip();
 
+%teams_options["path_to_send_teams.py"] = './';
+
 #set this value to 'true' (MUST BE LOWERCASE) if you are going to use agscript to leave this running even when all users disconnect
-%teams_options["enabled"] = 'true';
+%teams_options["enabled"] = 'false';
 
 
 
@@ -14,9 +16,10 @@
 
 sub settings {
 
-	$dialog = dialog("Event Log to teams Settings", %(webhookURL => %teams_options["webhookURL"], channel => %teams_options["channel"], emoji => %teams_options["emoji"], teamserver => %teams_options["teamserver"], enabled => %teams_options["enabled"]), lambda({
+	$dialog = dialog("Event Log to teams Settings", %(webhookURL => %teams_options["webhookURL"], path_to_send_teams => %teams_options["path_to_send_teams.py"], teamserver => %teams_options["teamserver"], enabled => %teams_options["enabled"]), lambda({
 		%teams_options["webhookURL"] = $3['webhookURL'];
 		%teams_options["enabled"] = $3['enabled'];
+		%teams_options["path_to_send_teams.py"] = $3['path_to_send_teams']
 		%teams_options["teamserver"] = $3['teamserver'];
 		if (%teams_options["enabled"] eq 'true') {
 			#initialize script with message to event log
@@ -27,6 +30,7 @@ sub settings {
 	dialog_description($dialog, "Set up Cobalt Strike to send all messages in the Event Log to teams via an incoming webhook.");
 	
 	drow_text($dialog, "webhookURL",  "teams Webhook URL:");
+	drow_text($dialog, "path_to_send_teams",  "send_teams python location:");
 	drow_text($dialog, "teamserver", "Teamserver Identifier:");
 	drow_checkbox($dialog, "enabled", "Enabled:");
 	
@@ -38,19 +42,7 @@ sub settings {
 
 #send the message to teams
 sub sendMessage {
-	# $1 = timestamp of message, $2 = message
-	$timestamp = formatDate($1,"MM/dd/yyyy - HH:mm:ss z");
-	#curl -H 'Content-Type: application/json' -d '{"text": "Hello World"}' <YOUR WEBHOOK URL>
-	#@curl_command = @('curl','-X','POST','--data-urlencode','payload={"username": "Cobalt Strike Bot", "channel": "' . %teams_options["channel"] . '", "attachments" : [{ "pretext":"Server: ' . %teams_options["teamserver"] . ' Timestamp: ' . $timestamp . '" , "text" : "' . $2 . '"}]}',%teams_options["webhookURL"]);
-	@curl_command = @('curl','-H','"Content-Type: application/json"','-d','{"pretext":"Server: ' . %teams_options["teamserver"] . ' Timestamp: ' . $timestamp . '" , "text" : "' . $2 . '"}',%teams_options["webhookURL"]);
-	$output = readAll(exec(@curl_command));	
-
-	#some error handling
-	if ($output ne '@(\'ok\')') {
-		show_message("Event Log to teams encountered the following error:\n " . $output);
-	}
-	
-	closef($output);
+	$cmd = 'python3 ' . %teams_options["path_to_send_teams.py"] . "send_teams.py --teamserver " . %teams_options["teamserver"] . " --webhook_url " . %teams_options["webhookURL"] . " --text " . $2;
 }
 
 #event triggers
