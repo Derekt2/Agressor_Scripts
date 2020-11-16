@@ -1,18 +1,118 @@
-# Author @derekt2. Based on the work of @bluescreenofjeff
+# author: derekt2 based on work by bluescreenofjeff
 
-$teamsWebhookURL = 'https://hooks.teams.com/services/XXXXXXXXXXX/XXXXXXXXXXXXXx';
+#Script to send event log events to teams
 
-#beacon_command_register(
-#    "enumerate", 
-#    "Perform OPSEC safe host enumeration with built-in commands", 
-#    "Use: enumerate\n\nPerform Windows host enumeration with OPSEC safe techniques.");
+#%teams_options["webhookURL"] = 'https://hooks.teams.com/services/AAAAAAAAA/BBBBBBBBB/CCCCCCCCCCCCCCCCCCCCCCCC';
+%teams_options["teamserver"] = localip();
 
-on beacon_initial {
-		@curl_command = @('curl','-H','"Content-Type: application/json"','-d','"{"text": "New Beacon Checkin"}"',$teamsWebhookURL);
-		exec(@curl_command);
+#set this value to 'true' (MUST BE LOWERCASE) if you are going to use agscript to leave this running even when all users disconnect
+%teams_options["enabled"] = 'true';
+
+
+
+#settings dialog
+
+sub settings {
+
+	$dialog = dialog("Event Log to teams Settings", %(webhookURL => %teams_options["webhookURL"], channel => %teams_options["channel"], emoji => %teams_options["emoji"], teamserver => %teams_options["teamserver"], enabled => %teams_options["enabled"]), lambda({
+		%teams_options["webhookURL"] = $3['webhookURL'];
+		%teams_options["enabled"] = $3['enabled'];
+		%teams_options["teamserver"] = $3['teamserver'];
+		if (%teams_options["enabled"] eq 'true') {
+			#initialize script with message to event log
+			elog("Event Log to teams enabled on teamserver.");
+		}		
+	}));
+
+	dialog_description($dialog, "Set up Cobalt Strike to send all messages in the Event Log to teams via an incoming webhook.");
+	
+	drow_text($dialog, "webhookURL",  "teams Webhook URL:");
+	drow_text($dialog, "teamserver", "Teamserver Identifier:");
+	drow_checkbox($dialog, "enabled", "Enabled:");
+	
+	dbutton_action($dialog, "Save");
+	
+	dialog_show($dialog);
+
 }
 
-on web_hit {
-		@curl_command = @('curl','-H','"Content-Type: application/json"','-d','"{"text": "New web_hit activity"}"',$teamsWebhookURL);
-		exec(@curl_command);
+#send the message to teams
+sub sendMessage {
+	# $1 = timestamp of message, $2 = message
+	$timestamp = formatDate($1,"MM/dd/yyyy - HH:mm:ss z");
+	#curl -H 'Content-Type: application/json' -d '{"text": "Hello World"}' <YOUR WEBHOOK URL>
+	#@curl_command = @('curl','-X','POST','--data-urlencode','payload={"username": "Cobalt Strike Bot", "channel": "' . %teams_options["channel"] . '", "attachments" : [{ "pretext":"Server: ' . %teams_options["teamserver"] . ' Timestamp: ' . $timestamp . '" , "text" : "' . $2 . '"}]}',%teams_options["webhookURL"]);
+	@curl_command = @('curl','-H','"Content-Type: application/json"','-d','{"pretext":"Server: ' . %teams_options["teamserver"] . ' Timestamp: ' . $timestamp . '" , "text" : "' . $2 . '"}',%teams_options["webhookURL"]);
+	$output = readAll(exec(@curl_command));	
+
+	#some error handling
+	if ($output ne '@(\'ok\')') {
+		show_message("Event Log to teams encountered the following error:\n " . $output);
+	}
+	
+	closef($output);
+}
+
+#event triggers
+on event_action {
+	if (%teams_options["enabled"] eq 'true') {
+		sendMessage($3,"$1 - $2");
+	}
+}
+
+on event_beacon_initial {
+	if (%teams_options["enabled"] eq 'true') {
+		sendMessage($2,"initial Beacon from $1");
+	}
+}
+
+on event_join {
+	if (%teams_options["enabled"] eq 'true') {
+		sendMessage($2,"$1 joined the server");
+	}
+}
+
+on event_newsite {
+	if (%teams_options["enabled"] eq 'true') {
+		sendMessage($3,"$1 $2");
+	}
+}
+
+on event_notify {
+	if (%teams_options["enabled"] eq 'true') {
+		sendMessage($2,$1);
+	}
+}
+
+on event_nouser {
+	if (%teams_options["enabled"] eq 'true') {
+		sendMessage($2,"$1 timed out");
+	}
+}
+
+on event_public {
+	if (%teams_options["enabled"] eq 'true') {
+		sendMessage($3,"$1 - $2");
+	}
+}
+
+on event_quit {
+	if (%teams_options["enabled"] eq 'true') {
+		sendMessage($2,"$1 logged out of the server");
+	}
+}
+
+if (%teams_options["enabled"] eq 'true') {
+	#initialize script with message to event log
+	elog("Event Log to teams enabled on teamserver.");
+}
+
+#menubar options
+menubar("Event Log to teams", "eventlog-to-teams", 2);
+
+# modify the main "Attacks" menu
+popup eventlog-to-teams {
+    item "Settings" {
+        settings();
+    }
 }
