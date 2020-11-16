@@ -43,6 +43,8 @@ sub settings {
 #send the message to teams
 sub sendMessage {
 	$cmd = 'python3 ' . %teams_options["path_to_send_teams.py"] . "send_teams.py --teamserver " . %teams_options["teamserver"] . " --webhook_url " . %teams_options["webhookURL"] . " --text " . $2;
+	println("Sending Teams Notification: " . $cmd);
+	exec($cmd);
 }
 
 #event triggers
